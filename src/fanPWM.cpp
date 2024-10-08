@@ -25,8 +25,11 @@ void initPWMfan(void){
   Log.printf("  Fan PWM sucessfully initialized.\r\n");
 }
 
+
+
 void updateFanSpeed(void){
   ledcWrite(PWMCHANNEL, pwmValue);
+ 
 }
 
 void updateMQTT_Screen_withNewPWMvalue(int aPWMvalue, bool force) {

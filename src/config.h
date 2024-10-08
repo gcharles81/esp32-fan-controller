@@ -12,7 +12,7 @@
 
 #include <driver/gpio.h>
 #include <esp32-hal-gpio.h>
-
+//bool screenUpdateRequired = false;  // Boolean flag for screen update
 // --- Begin: choose operation mode -------------------------------------------------------------------------------------------------------------------------------
 // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 // You have two ways to choose the operation mode:
@@ -33,10 +33,10 @@
      Target temperature: the target temperature will be tried to reach. The target temmperate can be provided via mqtt, via a touch display or both.
 */
 // --- Begin: list of presets. Choose exactly one. ---
-#define fan_controlledByMQTT
+//#define fan_controlledByMQTT
 //#define fan_controlledByTouch
 //#define fan_controlledByMQTTandTouch
-//#define climate_controlledByBME_targetByMQTT
+#define climate_controlledByBME_targetByMQTT
 //#define climate_controlledByBME_targetByTouch
 //#define climate_controlledByBME_targetByMQTTandTouch
 //#define climate_controlledByMQTT_targetByMQTT
@@ -58,6 +58,9 @@
 #if defined(fan_controlledByMQTT) || defined(fan_controlledByMQTTandTouch) || defined(climate_controlledByBME_targetByMQTT) || defined(climate_controlledByBME_targetByMQTTandTouch) || defined(climate_controlledByMQTT_targetByMQTT) || defined(climate_controlledByMQTT_targetByMQTTandTouch)
   #define useWIFI
   #define useMQTT
+    #define useTFT
+  //#define DRIVER_ILI9341       // e.g. 2.8 inch touch panel, 320x240, used in AZ-Touch
+  #define TFT_DRIVER_CHGA // Added by Charles for TFTespi
 #endif
 #if defined(fan_controlledByTouch) || defined(fan_controlledByMQTTandTouch) || defined(climate_controlledByBME_targetByTouch) || defined(climate_controlledByBME_targetByMQTTandTouch) || defined(climate_controlledByMQTT_targetByMQTTandTouch)
   #define useTFT
@@ -148,15 +151,15 @@ static_assert(false, "You cannot have both \"#define useStandbyButton\" and \"#d
 
 // --- fan specs ----------------------------------------------------------------------------------------------------------------------------
 // fanPWM
-#define PWMPIN               GPIO_NUM_17
+#define PWMPIN               GPIO_NUM_32
 #define PWMFREQ              25000
 #define PWMCHANNEL           0
 #define PWMRESOLUTION        8
 #define FANMAXRPM            1500         // only used for showing at how many percent fan is running
 
 // fanTacho
-#define TACHOPIN                             GPIO_NUM_16
-#define TACHOUPDATECYCLE                     1000 // how often tacho speed shall be determined, in milliseconds
+#define TACHOPIN                             GPIO_NUM_39
+#define TACHOUPDATECYCLE                     250 // how often tacho speed shall be determined, in milliseconds
 #define NUMBEROFINTERRUPSINONESINGLEROTATION 2    // Number of interrupts ESP32 sees on tacho signal on a single fan rotation. All the fans I've seen trigger two interrups.
 
 // --- automatic temperature control --------------------------------------------------------------------------------------------------------
@@ -171,14 +174,14 @@ static_assert(false, "You cannot have both \"#define useStandbyButton\" and \"#d
 // initial target temperature on startup
 #define INITIALTARGETTEMPERATURE 27.0
 // Lowest pwm value the temperature controller should use to set fan speed. If you want the fan not to turn off, set a value so that fan always runs.
-#define PWMMINIMUMVALUE            120
+#define PWMMINIMUMVALUE            0
 #else
 // delta used when manually increasing or decreasing pwm
 #define PWMSTEP                    10
 #endif
 
 // initial pwm fan speed on startup (0 <= value <= 255)
-#define INITIALPWMVALUE            120
+#define INITIALPWMVALUE            0
 
 // sanity check
 #if !defined(setActualTemperatureViaBME280) && !defined(setActualTemperatureViaMQTT) && defined(useAutomaticTemperatureControl)
@@ -195,8 +198,8 @@ static_assert(false, "You cannot have both \"#define setActualTemperatureViaBME2
 
 #ifdef useTemperatureSensorBME280
 // I2C pins used for BME280
-#define I2C_SCL              GPIO_NUM_32 // GPIO_NUM_22 // GPIO_NUM_17
-#define I2C_SDA              GPIO_NUM_33 // GPIO_NUM_21 // GPIO_NUM_16
+#define I2C_SCL              GPIO_NUM_22 // GPIO_NUM_22 // GPIO_NUM_17
+#define I2C_SDA              GPIO_NUM_21 // GPIO_NUM_21 // GPIO_NUM_16
 #define I2C_FREQ        100000 // 400000
 #define BME280_ADDR      0x76
 // in order to calibrate BME280 at startup, provide here the height over sea level in meter at your location
@@ -206,17 +209,13 @@ static_assert(false, "You cannot have both \"#define setActualTemperatureViaBME2
 // --- wifi ---------------------------------------------------------------------------------------------------------------------------------
 
 #ifdef useWIFI
-#define WIFI_SSID     "YourWifiSSID"           // override it in file "config_override.h"
-#define WIFI_PASSWORD "YourWifiPassword"       // override it in file "config_override.h"
-//#define WIFI_KNOWN_APS_COUNT 2
-//#define WIFI_KNOWN_APS \
-//  { "00:11:22:33:44:55", "Your AP 2,4 GHz"}, \
-//  { "66:77:88:99:AA:BB", "Your AP 5 GHz"}
+#define WIFI_SSID     "Marsaxlokk"           // override it in file "config_override.h"
+#define WIFI_PASSWORD "Liam_3004"       // override it in file "config_override.h"
 #endif
 
 // --- OTA Update ---------------------------------------------------------------------------------------------------------------------------
 #define useOTAUpdate
-// #define useOTA_RTOS     // not recommended because of additional 10K of heap space needed
+//#define useOTA_RTOS     // not recommended because of additional 10K of heap space needed
 
 #if !defined(useWIFI) && defined(useOTAUpdate)
 static_assert(false, "\"#define useOTAUpdate\" is only possible with \"#define useWIFI\"");
@@ -240,10 +239,10 @@ static_assert(false, "You cannot use \"#define useOTA_RTOS\" without \"#define u
   Otherwise you can change it to e.g. "Fan Controller 2" and "esp32_fan_controller_2"
 */
 #ifdef useMQTT
-#define UNIQUE_DEVICE_FRIENDLYNAME "Fan Controller"       // override it in file "config_override.h"
-#define UNIQUE_DEVICE_NAME         "esp32_fan_controller" // override it in file "config_override.h"
+#define UNIQUE_DEVICE_FRIENDLYNAME "Noctua Fan Controller"       // override it in file "config_override.h"
+#define UNIQUE_DEVICE_NAME         "esp32_Noctua_controller" // override it in file "config_override.h"
 
-#define MQTT_SERVER            "IPAddressOfYourBroker"    // override it in file "config_override.h"
+#define MQTT_SERVER            "192.168.178.83"    // override it in file "config_override.h"
 #define MQTT_SERVER_PORT       1883                       // override it in file "config_override.h"
 #define MQTT_USER              ""                         // override it in file "config_override.h"
 #define MQTT_PASS              ""                         // override it in file "config_override.h"
@@ -362,21 +361,14 @@ static_assert(false, "You have to use \"#define useMQTT\" when having \"#define 
 // --- tft ----------------------------------------------------------------------------------------------------------------------------------
 
 #ifdef useTFT
+/*
 #define TFT_CS                GPIO_NUM_5    //diplay chip select
 #define TFT_DC                GPIO_NUM_4    //display d/c
 #define TFT_RST               GPIO_NUM_22   //display reset
 #define TFT_MOSI              GPIO_NUM_23   //diplay MOSI
 #define TFT_CLK               GPIO_NUM_18   //display clock
+*/
 
-
-#ifdef DRIVER_ILI9341
-#define TFT_LED               GPIO_NUM_15   //display background LED
-#define TFT_MISO              GPIO_NUM_19   //display MISO
-#define TFT_ROTATION          3 // use 1 (landscape) or 3 (landscape upside down), nothing else. 0 and 2 (portrait) will not give a nice result.
-#endif
-#ifdef DRIVER_ST7735
-#define TFT_ROTATION          1 // use 1 (landscape) or 3 (landscape upside down), nothing else. 0 and 2 (portrait) will not give a nice result.
-#endif
 
 #endif
 

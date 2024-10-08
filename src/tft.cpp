@@ -13,7 +13,10 @@
 #ifdef DRIVER_ST7735
 #include <Adafruit_ST7735.h>
 #endif
-
+#ifdef TFT_DRIVER_CHGA
+#include "Free_Fonts.h" // Include the header file attached to this sketch
+#include <TFT_eSPI.h>
+#endif
 //prepare driver for display
 #ifdef DRIVER_ILI9341
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
@@ -24,6 +27,29 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 // Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK, TFT_RST);
 #endif
 
+
+#ifdef TFT_DRIVER_CHGA
+TFT_eSPI tft = TFT_eSPI();
+TFT_eSprite spr = TFT_eSprite(&tft);
+#endif
+
+  uint16_t bg_color = TFT_BLACK;       // This is the background colour used for smoothing (anti-aliasing)
+  uint16_t ng_color = 0x08a4;//TFT_DARKGREY;
+  uint16_t fg_color = 0x5E9E;//TFT_CYAN;
+  uint16_t x = 122;  // Position of centre of arc
+  uint16_t y = 40;
+
+  uint8_t radius       = 36; // Outer arc radius
+  uint8_t thickness    = 7;
+  uint8_t inner_radius = radius - thickness;        // Calculate inner radius (can be 0 for circle segment)
+  // 0 degrees is at 6 o'clock position
+  // Arcs are drawn clockwise from start_angle to end_angle
+  // Start angle can be greater than end angle, the arc will then be drawn through 0 degrees
+  uint16_t start_angle = 30; // Start angle must be in range 0 to 360
+  uint16_t end_angle   = 240; // End angle must be in range 0 to 360
+  uint16_t end_angle_Blank   = 330; // End angle must be in range 0 to 360
+boolean screenUpdateRequired = false;  // Boolean flag for screen update
+boolean TFTOTA = false;
 #ifdef useTFT
 const GFXfont *myFont;
 int textSizeOffset;
@@ -53,15 +79,13 @@ void initTFT(void) {
   myFont = NULL;
   textSizeOffset = 0;
   #endif
+#ifdef TFT_DRIVER_CHGA
+  tft.begin();
+  tft.setRotation(3);  // portrait
+  tft.fillScreen(TFT_BLUE);
+    Guage_test();
+#endif
 
-  tft.setFont(myFont);
-  tft.setRotation(TFT_ROTATION); 
-
-  calcDimensionsOfElements();
-
-  // clear screen
-  tft.fillScreen(TFT_BLACK);
-  draw_screen();
 
   // show the displays resolution
   Log.printf("  TFT sucessfully initialized.\r\n");
@@ -212,6 +236,7 @@ int16_t tft_getWidth(void) {
   return tft.width();
 }
 
+
 int16_t tft_getHeight(void) {
   return tft.height();
 }
@@ -220,6 +245,12 @@ void tft_fillScreen(void) {
   tft.fillScreen(TFT_BLACK);
 };
 
+boolean GetScreenStatus(void) {
+  return screenUpdateRequired;
+}
+void SetScreenStatus(boolean Status) {
+  screenUpdateRequired = Status;
+}
 /*
 https://learn.adafruit.com/adafruit-gfx-graphics-library/using-fonts
 https://www.heise.de/ratgeber/Adafruit-GFX-Library-Einfache-Grafiken-mit-ESP32-und-Display-erzeugen-7546653.html?seite=all
@@ -236,171 +267,148 @@ https://www.heise.de/select/make/2023/2/2304608284785808657
   15          0/120     -180/255      -165240         -135/195       -450/600
 */
 void printText(int areaX, int areaY, int areaWidth, int lineNr, const char *str, uint8_t textSize, const GFXfont *f, bool wipe) {
-  // get text bounds
-  GFXcanvas1 testCanvas(tft_getWidth(), tft_getHeight());
-  int16_t x1; int16_t y1; uint16_t w; uint16_t h;
-  testCanvas.setFont(f);
-  testCanvas.setTextSize(textSize);
-  testCanvas.setTextWrap(false);
-  testCanvas.getTextBounds("0WIYgy,", 0, 0, &x1, &y1, &w, &h);
-  // Log.printf("  x1 = %d, y1 = %d, w=%d, h=%d\r\n", x1, y1, w, h);
-  int textHeight = h;
-  int textAreaHeight = textHeight +2; // additional 2 px as vertical spacing between lines
-  // y1=0 only for standardfont, with every other font this value gets negative!
-  // This means that when using standarfont at (0,0), it really gets printed at 0,0.
-  // With every other font, printing at (0,0) means that text starts at (0, y1) with y1 being negative!
-  int textAreaOffset = -y1;
-  // Don't know why, but a little additional correction has to be done for every font other than standard font. Doesn't work perfectly, sometimes position is wrong by 1 pixel
-  // if (textAreaOffset != 0) {
-  //   textAreaOffset = textAreaOffset + textSize;
-  // }
-
-  // Version 1: flickering, but faster
+  
   #ifdef useTouch
-  tft.setFont(f);
-  tft.setTextSize(textSize);
-  tft.setTextWrap(false);
-  if (wipe) {
-    tft.fillRect (areaX, areaY + lineNr*textAreaHeight, areaWidth, textAreaHeight, TFT_BLACK);
-  }
-  tft.setCursor(areaX, areaY + textAreaOffset + lineNr*textAreaHeight);
-  tft.printf(str);
+ 
   #endif
 
   // Version 2: flicker-free, but slower. Touch becomes unusable.
   #ifndef useTouch
-  GFXcanvas1 canvas(areaWidth, textAreaHeight);
-  canvas.setFont(f);
-  canvas.setTextSize(textSize);
-  canvas.setTextWrap(false);
-  canvas.setCursor(0, textAreaOffset);
-  canvas.println(str);
-  tft.drawBitmap(areaX, areaY + lineNr*textAreaHeight, canvas.getBuffer(), areaWidth, textAreaHeight, TFT_WHITE, TFT_BLACK);
+
   #endif
 }
 #endif
 
 void switchOff_screen(boolean switchOff) {
   #ifdef useTFT
-  if (switchOff) {
-    Log.printf("  Will switch TFT off.\r\n");
-    digitalWrite(TFT_LED, !LED_ON);
-    // if digitalWrite does not work for your screen, then try: tft_fillScreen();
-  } else {
-    Log.printf("  Will switch TFT on.\r\n");
-    digitalWrite(TFT_LED, LED_ON);
-    // if digitalWrite does not work for your screen, then try: draw_screen();
-  }
+ 
   #endif
 }
 
 void draw_screen(void) {
-  if (getModeIsOff()) {
-    return;
-  }
-  #ifdef useTFT
+screenUpdateRequired = true;
+/*
+    // Calculate the average RPM based on the buffer
+  int average_rpm = calculateAverageRPM();
+  
+ Log.printf("Average fan rpm = %d\r\n", average_rpm);
+
   char buffer[100];
-  // don't understand why I have to do this
-  #ifdef useTouch
-  String percentEscaped = "%%";
-  #else
-  String percentEscaped = "%";
-  #endif
-
-  if (screen == SCREEN_NORMALMODE) {
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);
-
-    // actual temperature and target temperature
+  spr.createSprite(160,80);
+  spr.fillSprite(TFT_BLACK);
+  spr.setTextColor(TFT_WHITE,TFT_BLACK);
+  spr.setFreeFont(FF6);
     #ifdef useAutomaticTemperatureControl
-    sprintf(buffer, "%.1f (actual)", getActualTemperature());
-    printText(tempAreaLeft, tempAreaTop, tempAreaWidth, 0, buffer, textSizeOffset + 2, myFont, true);
-    sprintf(buffer, "%.1f (target)", getTargetTemperature());
-    printText(tempAreaLeft, tempAreaTop, tempAreaWidth, 1, buffer, textSizeOffset + 2, myFont, true);
+     spr.drawString(String(getActualTemperature()),25,6);
+      spr.drawString(String(getTargetTemperature()),25,26);
+
+int vad = getPWMvalue();
+int Value2 = vad;
+
+if(vad>=1){
+spr.drawString(String(average_rpm),25,60);
+}
+else{
+  spr.drawString(String(0),25,60);
+}
+
+spr.pushSprite(0,0);
     #endif
+  */
+}
+
+void OTA_TFT_RESET(void){
+  TFTOTA=false;
+}
+void OTA_Guage_test(void){
+
+  spr.createSprite(160,80);
+  spr.fillSprite(TFT_RED);
+  spr.setTextColor(TFT_WHITE,TFT_RED);
+ 
+  //spr.setFreeFont(FM9);
+  spr.setFreeFont(FF6);
+
+
+ spr.setTextColor(TFT_WHITE,TFT_RED);
+ spr.setTextDatum(MC_DATUM);
+ spr.setFreeFont(FF21);
+ String Stemp = "OTA STARTED";
+ spr.drawString(String(Stemp ),80,40);
+ spr.pushSprite(0,0);
+
+TFTOTA=true; // set to True so main screen will not update;
+}
+
+
+
+
+void Guage_test(void){
+if (TFTOTA) return;
+
+  spr.createSprite(160,80);
+  spr.fillSprite(TFT_BLACK);
+  spr.setTextColor(TFT_WHITE,TFT_BLACK);
+ 
+  //spr.setFreeFont(FM9);
+  spr.setFreeFont(FF6);
+
+ int vad = getPWMvalue();
+
+ if(vad>0){
+   fg_color = 0x5E9E;//TFT_CYAN;
+ }
+
+ else{
+ fg_color  = 0x08a4;//TFT_DARKGREY;
+ }
+
+  //bool smooth = random(2); // true = smooth sides, false = no smooth sides
+  end_angle = map(vad,0,255,30,330);
+
+
+  spr.drawArc(x, y, radius, inner_radius, start_angle, end_angle, fg_color, bg_color);
+  spr.drawArc(x, y, radius, inner_radius, end_angle, end_angle_Blank, ng_color, bg_color);
+  //int Xs = spr.GET
+/*
+  int index = (waterTemp > 10.00) ? 153 : 138;
+  spr.setCursor(index, 64);
+*/
+
+
+    spr.setTextColor(0x5E9E,TFT_BLACK);
+ 
+  spr.setTextDatum(MC_DATUM);
+  spr.drawString(String(vad),x,y);
+
+ spr.setFreeFont(FF21);
+
+String Stemp = "ST:" + String(getTargetTemperature());
+spr.drawString(String(Stemp ),39,5);
+
+String temp = "AT:" + String(getActualTemperature());
+spr.drawString(String(temp),39,30);
   
-    // fan
-    printText(fanAreaLeft, fanAreaTop, fanAreaWidth, 0, "Fan:", textSizeOffset + 1, myFont, false);
-    sprintf(buffer, "%d rpm (%d%s)", last_rpm, (100*last_rpm)/FANMAXRPM, percentEscaped.c_str());
-    printText(fanAreaLeft, fanAreaTop, fanAreaWidth, 1, buffer, textSizeOffset + 1, myFont, true);
-    sprintf(buffer, "%d/255 pwm (%d%s)", getPWMvalue(), (100*getPWMvalue())/255, percentEscaped.c_str());
-    printText(fanAreaLeft, fanAreaTop, fanAreaWidth, 2, buffer, textSizeOffset + 1, myFont, true);
 
-    // relative humidity, barometric pressure and ambient temperature
-    #ifdef useTemperatureSensorBME280
-    int ambientLine = 0;
-    printText(ambientAreaLeft, ambientAreaTop, ambientAreaWidth, ambientLine++, "Ambient:", textSizeOffset + 1, myFont, false);
-    #if   ( (!defined(useAutomaticTemperatureControl) && defined(useTemperatureSensorBME280)) || ( defined(useAutomaticTemperatureControl) && defined(setActualTemperatureViaMQTT)) )
-    sprintf(buffer, "%.1f temperature", lastTempSensorValues[0]);
-    printText(ambientAreaLeft, ambientAreaTop, ambientAreaWidth, ambientLine++, buffer,      textSizeOffset + 1, myFont, true);
-    #endif
-    sprintf(buffer, "%.2f hPa (%.2f m)", lastTempSensorValues[1], lastTempSensorValues[2]);
-    printText(ambientAreaLeft, ambientAreaTop, ambientAreaWidth, ambientLine++, buffer,      textSizeOffset + 1, myFont, true);
-    sprintf(buffer, "%.2f%s humidity", lastTempSensorValues[3], percentEscaped.c_str());
-    printText(ambientAreaLeft, ambientAreaTop, ambientAreaWidth, ambientLine++, buffer,      textSizeOffset + 1, myFont, true);
-    #endif
-  
-    #ifdef useTouch
-    // increase temperature or pwm
-    tft.fillRoundRect(valueUpRect[0],   valueUpRect[1],    valueUpRect[2],   valueUpRect[3],   4, TFT_GREEN);
-    //   plus sign
-    //     horizontal line
-    tft.drawLine(valueUpRect[0]+plusMinusHorizontalLineMarginLeft, valueUpRect[1]+plusMinusHorizontalLineMarginTop,   valueUpRect[0]+plusMinusHorizontalLineMarginLeft + plusMinusHorizontalLineLength, valueUpRect[1]+plusMinusHorizontalLineMarginTop,   TFT_BLACK);
-    tft.drawLine(valueUpRect[0]+plusMinusHorizontalLineMarginLeft, valueUpRect[1]+plusMinusHorizontalLineMarginTop+1, valueUpRect[0]+plusMinusHorizontalLineMarginLeft + plusMinusHorizontalLineLength, valueUpRect[1]+plusMinusHorizontalLineMarginTop+1, TFT_BLACK);
-    //     vertical line
-    tft.drawLine(valueUpRect[0]+plusMinusVerticalLineMarginLeft,   valueUpRect[1]+plusMinusVerticalLineMarginTop, valueUpRect[0]+plusMinusVerticalLineMarginLeft,   valueUpRect[1]+plusMinusVerticalLineMarginTop + plusMinusVerticalLineLength, TFT_BLACK);
-    tft.drawLine(valueUpRect[0]+plusMinusVerticalLineMarginLeft+1, valueUpRect[1]+plusMinusVerticalLineMarginTop, valueUpRect[0]+plusMinusVerticalLineMarginLeft+1, valueUpRect[1]+plusMinusVerticalLineMarginTop + plusMinusVerticalLineLength, TFT_BLACK);
-    // decrease temperature or pwm
-    tft.fillRoundRect(valueDownRect[0], valueDownRect[1],  valueDownRect[2], valueDownRect[3], 4, TFT_GREEN);
-    //   minus sign
-    //     horizontal line
-    tft.drawLine(valueDownRect[0]+plusMinusHorizontalLineMarginLeft, valueDownRect[1]+plusMinusHorizontalLineMarginTop,   valueDownRect[0]+plusMinusHorizontalLineMarginLeft + plusMinusHorizontalLineLength, valueDownRect[1]+plusMinusHorizontalLineMarginTop,   TFT_BLACK);
-    tft.drawLine(valueDownRect[0]+plusMinusHorizontalLineMarginLeft, valueDownRect[1]+plusMinusHorizontalLineMarginTop+1, valueDownRect[0]+plusMinusHorizontalLineMarginLeft + plusMinusHorizontalLineLength, valueDownRect[1]+plusMinusHorizontalLineMarginTop+1, TFT_BLACK);
-    #endif
 
-    #if defined (useStandbyButton) || defined(useShutdownButton)
-    // shutdown button
-    // square, without round corners
-    // tft.fillRect(shutdownRect[0],   shutdownRect[1],    shutdownRect[2],   shutdownRect[3],   TFT_RED);
-    // round corners, inner part
-    tft.fillRoundRect(shutdownRect[0], shutdownRect[1], shutdownRect[2], shutdownRect[3], getRelativeX(4), TFT_RED);
-    // round corners, outer line
-    // tft.drawRoundRect(shutdownRect[0], shutdownRect[1], shutdownRect[2], shutdownRect[3], 4, TFT_WHITE);
-    tft.drawCircle(shutdownRect[0]+getRelativeX(shutdownWidthAbsolute/2),   shutdownRect[1]+getRelativeY(shutdownHeightAbsolute/2), getRelativeX(shutdownWidthAbsolute*0.375),   TFT_WHITE);
-    tft.drawCircle(shutdownRect[0]+getRelativeX(shutdownWidthAbsolute/2),   shutdownRect[1]+getRelativeY(shutdownHeightAbsolute/2), getRelativeX(shutdownWidthAbsolute*0.375)-1, TFT_WHITE);
-    tft.drawLine(  shutdownRect[0]+getRelativeX(shutdownWidthAbsolute/2),   shutdownRect[1]+getRelativeY(shutdownHeightAbsolute/4), shutdownRect[0]+getRelativeX(shutdownWidthAbsolute/2),   shutdownRect[1]+getRelativeY(shutdownHeightAbsolute*3/4), TFT_WHITE);
-    tft.drawLine(  shutdownRect[0]+getRelativeX(shutdownWidthAbsolute/2)+1, shutdownRect[1]+getRelativeY(shutdownHeightAbsolute/4), shutdownRect[0]+getRelativeX(shutdownWidthAbsolute/2)+1, shutdownRect[1]+getRelativeY(shutdownHeightAbsolute*3/4), TFT_WHITE);
-    #endif
-  #ifdef useShutdownButton
-  } else if (screen == SCREEN_CONFIRMSHUTDOWN) {
-    printText(getRelativeX(44), getRelativeY(50), getRelativeX(200), 0, "Please confirm shutdown",      textSizeOffset + 1, myFont, false);
 
-    // confirm: yes
-    tft.fillRoundRect(confirmShutdownYesRect[0], confirmShutdownYesRect[1], confirmShutdownYesRect[2], confirmShutdownYesRect[3], 4, TFT_RED);
-    printText(confirmShutdownYesRect[0]+getRelativeX(12), confirmShutdownYesRect[1] + getRelativeY(22), getRelativeX(200), 0, "Yes",      textSizeOffset + 1, myFont, false);
-    // confirm: no
-    tft.fillRoundRect(confirmShutdownNoRect[0],  confirmShutdownNoRect[1],  confirmShutdownNoRect[2],  confirmShutdownNoRect[3],  4, TFT_GREEN);
-    printText(confirmShutdownNoRect[0]+ getRelativeX(18), confirmShutdownNoRect[1]  + getRelativeY(22), getRelativeX(200), 0, "No",       textSizeOffset + 1, myFont, false);
-  } else if (screen == SCREEN_COUNTDOWN) {
-    float floatSecondsSinceShutdown = (unsigned long)(millis()-startCountdown) / 1000;
-    // rounding
-    floatSecondsSinceShutdown = floatSecondsSinceShutdown + 0.5 - (floatSecondsSinceShutdown<0);
-    // convert float to int
-    int intSecondsSinceShutdown = (int)floatSecondsSinceShutdown;
+int fsa = getPWMvalue();
+//int Value2s = fsa;
+String rpm = "   ";
+if(fsa>=1){
+    // Calculate the average RPM based on the buffer
+  int average_rpm = calculateAverageRPM();
+rpm = "RPM:" + String(average_rpm);
+spr.drawString(String(rpm),41,55);
+}
+else{
 
-    // clear screen
-    tft.fillScreen(TFT_BLACK);
-    sprintf(buffer, "%d", SHUTDOWNCOUNTDOWN - intSecondsSinceShutdown);
-    printText(getRelativeX(115), getRelativeY(80), getRelativeX(200), 0, buffer,       textSizeOffset + 4, myFont, false);
+ rpm = "RPM:" + String(0);
+spr.drawString(String(rpm),35,55);
+}
 
-    if ((unsigned long)(millis() - startCountdown) > SHUTDOWNCOUNTDOWN*1000 + 15000){
-      // if EPS32 is still alive, which means power is still available, then stop countdown and go back to normal mode
-      Log.printf("hm, still alive? Better show mainscreen again\r\n");
-      screen = SCREEN_NORMALMODE;
-      // clear screen
-      tft.fillRect(0, 0, 320, 240, TFT_BLACK);
-      draw_screen();
-    }
-  #endif
-  }
-  #endif
+
+
+
+spr.pushSprite(0,0);
 }

@@ -1,6 +1,11 @@
 void initTFT(void);
 void draw_screen(void);
 void switchOff_screen(boolean switchOff);
+void Guage_test(void);
+void OTA_Guage_test(void);
+void OTA_TFT_RESET(void);
+boolean GetScreenStatus (void);
+void SetScreenStatus(boolean Status);
 #ifdef useTFT
 extern int screen;
 const int SCREEN_NORMALMODE      = 1;
@@ -13,6 +18,8 @@ extern int valueDownRect[4];
 extern int shutdownRect[4];
 extern int confirmShutdownYesRect[4];
 extern int confirmShutdownNoRect[4];
+
+
 
 int16_t tft_getWidth(void);
 int16_t tft_getHeight(void);

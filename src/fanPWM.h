@@ -7,3 +7,4 @@ void decFanSpeed(void);
 #endif
 int getPWMvalue();
 bool getModeIsOff(void);
+

@@ -7,7 +7,7 @@
 #include "mqtt.h"
 #include "sensorBME280.h"
 #include "tft.h"
-
+boolean SAVE_NEEDED = false;
 float targetTemperature;
 float actualTemperature;
 void setActualTemperatureAndPublishMQTT(float aActualTemperature) {
@@ -18,13 +18,22 @@ void setActualTemperatureAndPublishMQTT(float aActualTemperature) {
     #endif
   }
 }
+bool Getsavestatus(void){
+return SAVE_NEEDED;
+
+}
+
+void SETsavestatus(void){
+SAVE_NEEDED = false;
+
+}
 
 void updatePWM_MQTT_Screen_withNewTargetTemperature(float aTargetTemperature, bool force);
 void updatePWM_MQTT_Screen_withNewActualTemperature(float aActualTemperature, bool force);
 
 void initTemperatureController(void) {
   #ifdef useAutomaticTemperatureControl
-  targetTemperature = INITIALTARGETTEMPERATURE;
+ // targetTemperature = INITIALTARGETTEMPERATURE;
   updatePWM_MQTT_Screen_withNewTargetTemperature(targetTemperature, true);
   #ifdef setActualTemperatureViaMQTT
   setActualTemperatureAndPublishMQTT(NAN);
@@ -41,6 +50,10 @@ float getTargetTemperature(void) {
 }
 float getActualTemperature(void) {
   return actualTemperature;
+}
+
+void Set_target_temp(float Value){
+  targetTemperature=Value;
 }
 
 void setFanPWMbasedOnTemperature(void) {
@@ -86,6 +99,8 @@ void updatePWM_MQTT_Screen_withNewTargetTemperature(float aTargetTemperature, bo
     mqtt_publish_stat_targetTemp();
     #endif
     draw_screen();
+    
+   SAVE_NEEDED=true; // Set true so we save preferances in main loop 
   }
 }
 
@@ -97,5 +112,6 @@ void updatePWM_MQTT_Screen_withNewActualTemperature(float aActualTemperature, bo
     mqtt_publish_stat_actualTemp();
     #endif
     draw_screen();
+ 
   }
 }

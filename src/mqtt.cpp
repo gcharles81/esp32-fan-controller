@@ -315,9 +315,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
     if (strPayload == "ON") {
       Log.printf("MQTT command TURN ON OTA received\r\n");
       ArduinoOTA.begin();
+      OTA_Guage_test();
+      //Guage_test();
     } else if (strPayload == "OFF") {
       Log.printf("MQTT command TURN OFF OTA received\r\n");
       ArduinoOTA.end();
+      OTA_TFT_RESET();
     } else {
       Log.printf("Payload %s not supported\r\n", strPayload.c_str());
     }
